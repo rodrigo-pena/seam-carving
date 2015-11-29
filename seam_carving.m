@@ -1,38 +1,44 @@
 function img_sc = seam_carving( img, dims )
-% SEAM_CARVING performs seam carving on the img.
+% SEAM_CARVING retargets the input image os that the output image has the
+% specified dimensions.
+%
+%   Usage:
+%       img_sc = seam_carving(img, dims)
 %
 %   Input:
-%         img       : Input image
-%         dims      : A scalar indicating the expansion factor in both rows
-%                     and columns, or a vector of length 2 indicating the 
-%                     number of rows and columns of the output image.
+%       img       : A n-by-m-by-d image.
+%       dims      : A scalar indicating the expansion factor in both rows
+%                   and columns, OR a vector of length 2 indicating the 
+%                   number of rows and columns of the output image.
 %
 %   Output:
-%         img_sc    : Output image
+%         img_sc  : Retargetted image. 
 %
 %   Example:
-%         img = imread('img/5.jpg');
-%         [r, c, ~] = size(img);
-%         img_sc = seam_carving( img, [r, c - 200] );
+%       img = imread('img/5.jpg');
+%       [r, c, ~] = size(img);
+%       img_sc = seam_carving( img, [r, c - 100] );
+%       imshow(img);
+%       figure;
+%       imshow(img_sc);
 %
-%   See also: find_seam.m, delete_seam.m, expand_seam.m
+%   See also: find_k_seams.m, delete_seam.m, expand_seam.m
 %
 %   Requires:
 %
 %   References:
-%         [1] Avidan, S. and Shamir, A. "Seam Carving for Content-Aware
-%          Image Resizing". Mitsubishi Electric Research Laboratories.
-%          Technical Report TR2007-087. August 2008.
-%         [2] Rubinstein, M. et al. "Improved Seam Carving for Video 
-%          Retargeting". Mitsubishi Electric Research Laboratories.
-%          Technical Report TR2008-064. August 2008.
+%       [1] Avidan, S. and Shamir, A. "Seam Carving for Content-Aware
+%       Image Resizing". Mitsubishi Electric Research Laboratories.
+%       Technical Report TR2007-087. August 2008.
+%       [2] Rubinstein, M. et al. "Improved Seam Carving for Video 
+%       Retargeting". Mitsubishi Electric Research Laboratories.
+%       Technical Report TR2008-064. August 2008.
 %
 % Author: Rodrigo Pena
-% Date: 19 Nov 2014
+% Date: 10 Dec 2014
 % Testing: 
 
 %% Parse input
-
 % img
 [r, c, d] = size(img);
 assert((d==3) || (d==1), ...
@@ -48,58 +54,61 @@ else
 end
 
 %% Initialization
-img_sc = double(img);
+img_sc = img;
 
 %% Seam carving across the rows:
-while (r ~= dims(1))
-    
-    % Compute energy map (absolute value of the gradient)
-    if d == 3
-        [Ix, Iy] = gradient(rgb2gray(img_sc));
-    else
-        [Ix, Iy] = gradient(img_sc);
-    end
-    energy_map = abs(Ix) + abs(Iy);
-    
-    % Find seams
-    [seam, ~, ~] = find_seam(energy_map, 'horizontal');
-    
-    % Remove or duplicate seam
-    if (r > dims(1))
-        img_sc = delete_seam(img_sc, seam, 'horizontal');
-    else
-        img_sc = expand_seam(img_sc, seam, 'horizontal');
-    end
-    
-    % Update image info
-    [r, ~, d] = size(img_sc);
+k = r - dims(1);
+dir_string = 'horizontal';
+
+switch sign(k)
+    case 0 % Do nothing
+        
+    case 1 % Remove rows
+        [~, img_sc] = find_k_seams(img_sc, abs(k), dir_string);
+        
+    case -1 % Add rows
+        % Max number of seams to expand per iteration (to avoid artefacts):
+        max_k = round(0.1 .* r);
+        
+        iterations = floor(abs(k./max_k));
+        for i = 1:iterations
+            [seams, ~] = find_k_seams(img_sc, max_k, dir_string);
+            img_sc = expand_seam(img_sc, seams, dir_string);
+        end
+        
+        rest = abs(k) - iterations .* max_k;
+        if (rest ~= 0)
+            [seams, ~] = find_k_seams(img_sc, rest, dir_string);
+            img_sc = expand_seam(img_sc, seams, dir_string);
+        end
 end
 
 %% Seam carving across the columns:
-while (c ~= dims(2))
-    
-    % Compute energy map (absolute value of the gradient)
-    if d == 3
-        [Ix, Iy] = gradient(rgb2gray(img_sc));
-    else
-        [Ix, Iy] = gradient(img_sc);
-    end
-    energy_map = abs(Ix) + abs(Iy);
-    
-    % Find seams
-    [seam, ~, ~] = find_seam(energy_map, 'vertical');
-    
-    % Remove or duplicate seam
-    if (c > dims(2))
-        img_sc = delete_seam(img_sc, seam, 'vertical');
-    else
-        img_sc = expand_seam(img_sc, seam, 'vertical');
-    end
-    
-    % Update image info
-    [~, c, d] = size(img_sc);
-end
+k = c - dims(2);
+dir_string = 'vertical';
 
+switch sign(k)
+    case 0 % Do nothing
+        
+    case 1 % Remove columns
+        [~, img_sc] = find_k_seams(img_sc, abs(k), dir_string);
+        
+    case -1 % Add columns
+        % Max number of seams to expand per iteration (to avoid artefacts):
+        max_k = round(0.1 .* c);
+        
+        iterations = floor(abs(k./max_k));
+        for i = 1:iterations
+            [seams, ~] = find_k_seams(img_sc, max_k, dir_string);
+            img_sc = expand_seam(img_sc, seams, dir_string);
+        end
+        
+        rest = abs(k) - iterations .* max_k;
+        if (rest ~= 0)
+            [seams, ~] = find_k_seams(img_sc, rest, dir_string);
+            img_sc = expand_seam(img_sc, seams, dir_string);
+        end
+end
 
 end
 
